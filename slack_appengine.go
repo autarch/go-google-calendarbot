@@ -7,7 +7,7 @@ import (
 
 	"github.com/lestrrat/slack"
 	"golang.org/x/net/context"
-  "google.golang.org/appengine/urlfetch"
+	"google.golang.org/appengine/urlfetch"
 )
 
 func NewSlackClient(ctx context.Context, token string) *slack.Client {

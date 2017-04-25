@@ -13,6 +13,6 @@ func ExampleCalendarBot() {
 
 	bot := calendarbot.New()
 	bot.OAuth2Config = auth.NewFileConfigProvider("config.json")
-	bot.OAuth2Token  = auth.NewFileTokenProvider("token.json")
+	bot.OAuth2Token = auth.NewFileTokenProvider("token.json")
 	bot.NotifyUpcomingEvents(ctx, time.Now(), 24*time.Hour)
 }

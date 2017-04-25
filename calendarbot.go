@@ -27,7 +27,8 @@ type EventCache interface {
 	Get(context.Context, string) (interface{}, error)
 }
 
-type cacheMissError struct {}
+type cacheMissError struct{}
+
 func (_ cacheMissError) IsCacheMiss() bool {
 	return true
 }
@@ -36,12 +37,12 @@ func (_ cacheMissError) Error() string {
 }
 
 type cacheEntry struct {
-	Value []byte
+	Value   []byte
 	Expires time.Time
 }
 
 type memoryCache struct {
-	data map[string]cacheEntry
+	data  map[string]cacheEntry
 	mutex sync.Mutex
 }
 
@@ -63,7 +64,7 @@ func (c *memoryCache) Add(_ context.Context, key string, val []byte, expires tim
 		return errors.New("entry exists")
 	}
 	c.data[key] = cacheEntry{
-		Value: val,
+		Value:   val,
 		Expires: time.Now().Add(expires),
 	}
 	return nil
@@ -99,7 +100,7 @@ type Bot struct {
 
 func New() *Bot {
 	return &Bot{
-		Cache: newMemoryCache(),
+		Cache:        newMemoryCache(),
 		CalendarName: `primary`,
 	}
 }
@@ -122,73 +123,73 @@ func (b *Bot) NotifyIndividualEvents(ctx context.Context, t time.Time, delta tim
 	}
 
 	// Collect events that are due in the given time frame
-  start := t.Format(time.RFC3339)
-  end := t.Add(delta).Format(time.RFC3339)
+	start := t.Format(time.RFC3339)
+	end := t.Add(delta).Format(time.RFC3339)
 
-  events, err := s.Events.
-    List(`primary`).
-    TimeMin(start).
-    TimeMax(end).
-    SingleEvents(true).
-    Do()
-  if err != nil {
+	events, err := s.Events.
+		List(`primary`).
+		TimeMin(start).
+		TimeMax(end).
+		SingleEvents(true).
+		Do()
+	if err != nil {
 		return errors.Wrap(err, "failed to list events")
-  }
-  now := time.Now().UTC()
-  for _, event := range events.Items {
-    _, err := b.Cache.Get(ctx, event.Id)
+	}
+	now := time.Now().UTC()
+	for _, event := range events.Items {
+		_, err := b.Cache.Get(ctx, event.Id)
 		switch {
-    case err == nil :
-      // Found, go to next item
-      // log.Debugf(ctx, "event %s has been processed in the last 15 minutes, skipping", event.Id)
-      continue
-    case IsCacheMiss(err):
-      // Not found, need to process
-		case err != nil :
+		case err == nil:
+			// Found, go to next item
+			// log.Debugf(ctx, "event %s has been processed in the last 15 minutes, skipping", event.Id)
+			continue
+		case IsCacheMiss(err):
+			// Not found, need to process
+		case err != nil:
 			return errors.Wrap(err, "failed to communicate with cache")
 		}
 
-    t, err := time.Parse(time.RFC3339, event.Start.DateTime)
-    if err != nil {
+		t, err := time.Parse(time.RFC3339, event.Start.DateTime)
+		if err != nil {
 			return errors.Wrap(err, "failed to parse event start time")
-    }
-    diff := t.Sub(now)
-    if diff < 0 { // event %s has negative offset. skipping
-			b.Cache.Add(ctx, event.Id, []byte{0x1}, 15 *time.Minute)
-      continue
-    }
-    fields := []slack.AttachmentField{
-      slack.AttachmentField{
-        Title: "Start Time",
-        Value: t.Format("15:04"),
-      },
-    }
-    if txt := event.Description; txt != "" {
-      fields = append(fields, slack.AttachmentField{
-        Title: "Description",
-        Value: txt,
-      })
-    }
+		}
+		diff := t.Sub(now)
+		if diff < 0 { // event %s has negative offset. skipping
+			b.Cache.Add(ctx, event.Id, []byte{0x1}, 15*time.Minute)
+			continue
+		}
+		fields := []slack.AttachmentField{
+			slack.AttachmentField{
+				Title: "Start Time",
+				Value: t.Format("15:04"),
+			},
+		}
+		if txt := event.Description; txt != "" {
+			fields = append(fields, slack.AttachmentField{
+				Title: "Description",
+				Value: txt,
+			})
+		}
 
-    params := slack.NewPostMessageParameters()
-    params.Username = b.SlackUsername
-    params.Attachments = []slack.Attachment{
-      slack.Attachment{
-        Fallback:  event.Summary,
-        Fields:    fields,
-        ThumbURL:  b.SlackThumbURL,
-        Title:     event.Summary,
-        TitleLink: event.HtmlLink,
-      },
-    }
+		params := slack.NewPostMessageParameters()
+		params.Username = b.SlackUsername
+		params.Attachments = []slack.Attachment{
+			slack.Attachment{
+				Fallback:  event.Summary,
+				Fields:    fields,
+				ThumbURL:  b.SlackThumbURL,
+				Title:     event.Summary,
+				TitleLink: event.HtmlLink,
+			},
+		}
 		txt := fmt.Sprintf("This event starts in %d minutes", int(diff.Minutes()))
 		if err := postSlack(ctx, b.SlackToken, b.SlackChannel, txt, &params); err != nil {
 			return errors.Wrap(err, "failed to post message to slack")
 		}
 
-    // Remember this job for the next 15 minutes so we don't do it again
-		b.Cache.Add(ctx, event.Id, []byte{0x1}, 15 *time.Minute)
-  }
+		// Remember this job for the next 15 minutes so we don't do it again
+		b.Cache.Add(ctx, event.Id, []byte{0x1}, 15*time.Minute)
+	}
 	return nil
 }
 
